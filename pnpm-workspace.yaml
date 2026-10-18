@@ -1,0 +1,7 @@
+onlyBuiltDependencies:
+  - bcrypt
+  - esbuild
+  - sharp
+ignoredBuiltDependencies:
+  - '@apollo/protobufjs'
+  - re2

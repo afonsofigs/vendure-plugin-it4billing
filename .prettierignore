@@ -1,0 +1,5 @@
+node_modules
+dist
+coverage
+src/test/__data__
+pnpm-lock.yaml

@@ -1,0 +1,9 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"rootDir": "."
+	},
+	"include": ["src/", "vite.config.ts"],
+	"exclude": ["src/test/__data__"]
+}

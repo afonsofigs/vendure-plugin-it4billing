@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+src/test/__data__
+npm-debug.log
+.env
+.env.*
+*.har

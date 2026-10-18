@@ -26,7 +26,8 @@ browser, and keeps the PDF so your customers can download it whenever they want.
 2. The plugin records the request and queues it. One emission runs at a time, across processes and
    servers.
 3. The worker logs in to IT4Billing with a dedicated user, finds or creates the customer (by NIF)
-   and the articles (by reference), and builds the invoice-receipt.
+   and the articles (by reference), and builds the invoice-receipt. An existing customer whose
+   name or address changed is updated first (a dry run only reports it).
 4. Before saving, it checks that the document total matches the order total. If it does not, it
    stops.
 5. It saves the document, prints it once, stores the PDF and logs out.

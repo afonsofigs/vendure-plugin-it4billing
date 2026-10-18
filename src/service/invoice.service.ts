@@ -22,7 +22,9 @@ import {
 	SessionExpiredError,
 	TransportError,
 	UnexpectedPageError,
-	type ClientRecord
+	type ClientDetails,
+	type ClientRecord,
+	countryName
 } from '../client';
 import {
 	ARTICLE_REFERENCE_MAX_LENGTH,
@@ -283,8 +285,20 @@ export class It4BillingService implements OnModuleInit {
 			loggedIn = true;
 
 			const wouldCreate: string[] = [];
+			const wouldUpdate: string[] = [];
 			let customer: ClientRecord | undefined = await client.findClientByNif(billing.nif);
-			if (!customer && dryRun) {
+			if (customer) {
+				// The customer may have moved or renamed the company since the last invoice.
+				const changed = clientDifferences(await client.getClient(customer.id), billing);
+				if (changed.length && dryRun) {
+					wouldUpdate.push(`customer with NIF ${billing.nif}: ${changed.join(', ')}`);
+				} else if (changed.length) {
+					await client.updateClient(customer.id, billing);
+					customer = await client.findClientByNif(billing.nif);
+					if (!customer)
+						throw new UnexpectedPageError('The customer disappeared after updating it');
+				}
+			} else if (dryRun) {
 				wouldCreate.push(`customer with NIF ${billing.nif}`);
 				customer = await this.dryRunCustomer(client);
 			} else if (!customer) {
@@ -331,7 +345,7 @@ export class It4BillingService implements OnModuleInit {
 				const updated = await this.update(ctx, invoice.id, {
 					status: 'dry_run',
 					total: totals.total,
-					dryRunReport: JSON.stringify({ totals, wouldCreate })
+					dryRunReport: JSON.stringify({ totals, wouldCreate, wouldUpdate })
 				});
 				await this.publish(ctx, 'dry_run', updated, `Dry run total ${totals.total}`);
 				return;
@@ -739,6 +753,20 @@ export class It4BillingService implements OnModuleInit {
 	private adminContext(channelToken?: string) {
 		return this.requestContextService.create({ apiType: 'admin', channelOrToken: channelToken });
 	}
+}
+
+/** The billing fields that differ between IT4Billing and the order's billing details. */
+export function clientDifferences(stored: ClientDetails, wanted: BillingDetails): string[] {
+	const same = (a: string, b: string) =>
+		a.trim().replace(/\s+/g, ' ') === b.trim().replace(/\s+/g, ' ');
+	const changed: string[] = [];
+	if (!same(stored.fiscalName, wanted.name) || !same(stored.name, wanted.name))
+		changed.push('name');
+	if (!same(stored.streetLine, wanted.streetLine)) changed.push('address');
+	if (!same(stored.postalCode, wanted.postalCode)) changed.push('postal code');
+	if (!same(stored.city, wanted.city)) changed.push('city');
+	if (stored.country !== countryName(wanted.countryCode)) changed.push('country');
+	return changed;
 }
 
 function describe(e: unknown): string {

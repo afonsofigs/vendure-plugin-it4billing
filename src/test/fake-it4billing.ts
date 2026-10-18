@@ -98,6 +98,7 @@ interface Session {
 	loggedIn: boolean;
 	viewState: string;
 	createMode?: 'client' | 'article';
+	editClientId?: string;
 	articleDraft?: { taxId: string; rows: { taxId: string; priceMilli: number }[]; message?: string };
 	draft?: Draft;
 	viewing?: FakeDocument;
@@ -120,6 +121,7 @@ export class FakeIt4Billing {
 	readonly documents: FakeDocument[] = [];
 	readonly requests: { method: string; path: string; control?: string }[] = [];
 	saves = 0;
+	clientUpdates = 0;
 	prints = 0;
 	logins = 0;
 	lastUserAgent?: string;
@@ -211,7 +213,7 @@ export class FakeIt4Billing {
 		if (path === 'EntityDocuments' || path === 'Clients/List' || path === 'Articles/List') {
 			return this.list(session, res, path, body, control);
 		}
-		if (path === 'Client') return this.clientForm(session, res, body, control);
+		if (path === 'Client') return this.clientForm(session, res, url, body, control);
 		if (path === 'Article') return this.articleForm(session, res, body, control);
 		if (path === 'Documents') return this.documentForm(session, res, body, control);
 		return this.send(res, 404, 'not found');
@@ -289,10 +291,21 @@ export class FakeIt4Billing {
 	private clientForm(
 		session: Session,
 		res: ServerResponse,
+		url: URL,
 		body?: URLSearchParams,
 		control?: string
 	) {
-		if (session.createMode !== 'client') return this.send(res, 500, 'no create mode');
+		const editId = url.searchParams.get('Id');
+		if (!body && editId) {
+			// Opening an existing customer, as the "edit" action of the list does.
+			const existing = this.clients.find((c) => c.id === editId);
+			if (!existing) return this.send(res, 500, 'no such customer');
+			session.createMode = undefined;
+			session.editClientId = editId;
+			return this.page(res, session, `Client?Id=${editId}`, clientPanel(undefined, existing));
+		}
+		const editing = body && session.editClientId;
+		if (session.createMode !== 'client' && !editing) return this.send(res, 500, 'no create mode');
 		if (!body) return this.page(res, session, 'Client', clientPanel());
 		if (control !== 'ctl00$Content$SaveClient') return this.send(res, 500, 'unknown control');
 		const v = (n: string) => (body.get(`ctl00$Content$${n}`) ?? '').trim();
@@ -301,6 +314,20 @@ export class FakeIt4Billing {
 			return this.panel(res, session, clientPanel('Preencha os campos obrigatórios.'));
 		}
 		const country = COUNTRIES.find(([id]) => id === v('Ddlcountries'))?.[1] ?? '';
+		if (editing) {
+			const existing = this.clients.find((c) => c.id === session.editClientId)!;
+			Object.assign(existing, {
+				fiscalName: v('Fiscalname'),
+				name: v('Name'),
+				address: v('Address'),
+				postalCode: v('Postalcode'),
+				city: v('City'),
+				country
+			});
+			this.clientUpdates++;
+			session.editClientId = undefined;
+			return this.delta(res, [['pageRedirect', '', `/${FAKE_ACCOUNT}/Clients/List`]]);
+		}
 		this.clients.push({
 			id: String(this.clients.length + 100),
 			nif: v('Fiscalnumber'),
@@ -625,15 +652,16 @@ function loginPanel(error?: string) {
 <a id="B_ok" href="javascript:__doPostBack('B_ok','')">Entrar</a>`;
 }
 
-function clientPanel(error?: string) {
+function clientPanel(error?: string, c?: FakeClient) {
+	const countryId = COUNTRIES.find(([, name]) => name === c?.country)?.[0] ?? '182';
 	return `${message(error)}
-${input('ctl00$Content$Fiscalnumber', '999999990', ' maxlength="25"')}
-${select('ctl00$Content$Ddlcountries', COUNTRIES, '182')}
-${input('ctl00$Content$Fiscalname', '', ' maxlength="150"')}
-${input('ctl00$Content$Name', '', ' maxlength="150"')}
-${input('ctl00$Content$Address', 'N/D', ' maxlength="54"')}
-${input('ctl00$Content$Postalcode', '0000-000', ' maxlength="25"')}
-${input('ctl00$Content$City', 'N/D', ' maxlength="75"')}
+${input('ctl00$Content$Fiscalnumber', c?.nif ?? '999999990', ' maxlength="25"')}
+${select('ctl00$Content$Ddlcountries', COUNTRIES, countryId)}
+${input('ctl00$Content$Fiscalname', c?.fiscalName ?? '', ' maxlength="150"')}
+${input('ctl00$Content$Name', c?.name ?? '', ' maxlength="150"')}
+${input('ctl00$Content$Address', c?.address ?? 'N/D', ' maxlength="54"')}
+${input('ctl00$Content$Postalcode', c?.postalCode ?? '0000-000', ' maxlength="25"')}
+${input('ctl00$Content$City', c?.city ?? 'N/D', ' maxlength="75"')}
 <input type="checkbox" name="ctl00$Content$Published" checked="checked" />
 <input type="file" name="ctl00$Content$Photo$FileUploadEdit" />
 <a href="javascript:__doPostBack('ctl00$Content$SaveClient','')">Gravar</a>`;

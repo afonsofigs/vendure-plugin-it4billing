@@ -294,7 +294,7 @@ beforeAll(async () => {
 	await server.init({
 		initialData,
 		productsCsvPath: path.join(__dirname, 'fixtures/products.csv'),
-		customerCount: 12
+		customerCount: 16
 	});
 	await adminClient.asSuperAdmin();
 	server.app
@@ -574,6 +574,76 @@ describe('failures', () => {
 		await sleep(1000);
 		expect(fake.prints - prints).toBe(1);
 		expect((await request(code)).status).toBe('PREPARING');
+	});
+});
+
+describe('existing customers', () => {
+	const seedCustomer = (taxNumber: string, id: string) =>
+		fake.clients.push({
+			id,
+			name: 'Old Name, Lda',
+			fiscalName: 'Old Name, Lda',
+			nif: taxNumber,
+			address: 'Rua Antiga, 9',
+			postalCode: '2000-002',
+			city: 'Santarém',
+			country: 'Portugal'
+		});
+
+	test('a dry run only reports the changes it would make to the customer', async () => {
+		const taxNumber = nif('63456789');
+		seedCustomer(taxNumber, '910');
+		const customer = await newCustomer(taxNumber);
+		const { code } = await placeOrder(customer, [['BOX-1', 1]]);
+		const updates = fake.clientUpdates;
+		It4BillingPlugin.options.mode = 'dry-run';
+		try {
+			await request(code);
+			const rec = await waitFor(code, (r) => r.status === 'dry_run');
+			expect(JSON.parse(rec.dryRunReport!).wouldUpdate).toEqual([
+				`customer with NIF ${taxNumber}: name, address, postal code, city`
+			]);
+		} finally {
+			It4BillingPlugin.options.mode = 'live';
+		}
+		expect(fake.clientUpdates).toBe(updates);
+		expect(fake.clients.find((c) => c.nif === taxNumber)).toMatchObject({
+			address: 'Rua Antiga, 9'
+		});
+	});
+
+	test('a customer whose name or address changed is updated before issuing', async () => {
+		const taxNumber = nif('64567890');
+		seedCustomer(taxNumber, '911');
+		const customer = await newCustomer(taxNumber);
+		const { code } = await placeOrder(customer, [['BOX-1', 1]]);
+		const updates = fake.clientUpdates;
+
+		await request(code);
+		await waitFor(code, (r) => r.status === 'issued');
+		expect(fake.clientUpdates - updates).toBe(1);
+		expect(fake.clients.filter((c) => c.nif === taxNumber)).toEqual([
+			expect.objectContaining({
+				id: '911',
+				fiscalName: `Example Company ${nextCustomer}`,
+				address: 'Rua de Exemplo, 1',
+				postalCode: '1000-001',
+				city: 'Lisboa'
+			})
+		]);
+		const doc = fake.documents.at(-1)!;
+		expect(doc.clientId).toBe('911');
+	});
+
+	test('a customer that already matches is not touched', async () => {
+		const taxNumber = nif('64567890');
+		const customer = customers[nextCustomer - 1];
+		const { code } = await placeOrder(customer, [['ACC-1', 1]]);
+		const updates = fake.clientUpdates;
+		await request(code);
+		await waitFor(code, (r) => r.status === 'issued');
+		expect(fake.clientUpdates).toBe(updates);
+		expect(fake.clients.filter((c) => c.nif === taxNumber)).toHaveLength(1);
 	});
 });
 

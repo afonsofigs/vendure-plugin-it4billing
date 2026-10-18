@@ -112,6 +112,34 @@ describe('It4BillingClient against the fake IT4Billing', () => {
 		await client.logout();
 	});
 
+	test('reads and updates an existing customer, never its NIF', async () => {
+		const { client } = makeClient();
+		await client.login();
+		const found = (await client.findClientByNif(customer.nif))!;
+		expect(await client.getClient(found.id)).toEqual({
+			fiscalName: customer.name,
+			name: customer.name,
+			streetLine: customer.streetLine,
+			postalCode: customer.postalCode,
+			city: customer.city,
+			country: 'Portugal'
+		});
+		const moved = {
+			...customer,
+			streetLine: 'Avenida Nova, 2',
+			postalCode: '4000-001',
+			city: 'Porto'
+		};
+		await client.updateClient(found.id, moved);
+		expect(await client.getClient(found.id)).toMatchObject({
+			streetLine: 'Avenida Nova, 2',
+			city: 'Porto'
+		});
+		expect(fake.clients.filter((c) => c.nif === customer.nif)).toHaveLength(1);
+		await client.updateClient(found.id, customer);
+		await client.logout();
+	});
+
 	test('creates articles with their tax type and net price', async () => {
 		const { client } = makeClient();
 		await client.login();
@@ -190,6 +218,9 @@ describe('It4BillingClient against the fake IT4Billing', () => {
 		await expect(client.saveDocument()).rejects.toBeInstanceOf(ReadOnlyViolationError);
 		await expect(client.createClient(customer)).rejects.toBeInstanceOf(ReadOnlyViolationError);
 		await expect(client.createArticle(box)).rejects.toBeInstanceOf(ReadOnlyViolationError);
+		await expect(client.updateClient(target.id, customer)).rejects.toBeInstanceOf(
+			ReadOnlyViolationError
+		);
 		await expect(client.printDocument()).rejects.toBeInstanceOf(ReadOnlyViolationError);
 		expect(fake.saves).toBe(savesBefore);
 		await client.logout();

@@ -45,6 +45,17 @@ export interface ClientRecord {
 	suggestion: string;
 }
 
+/** A customer's billing data as stored in IT4Billing. */
+export interface ClientDetails {
+	fiscalName: string;
+	name: string;
+	streetLine: string;
+	postalCode: string;
+	city: string;
+	/** English country name, as listed in IT4Billing. */
+	country: string;
+}
+
 /** An article as returned by the IT4Billing product search. */
 export interface ArticleRecord {
 	reference: string;
@@ -175,17 +186,36 @@ export class It4BillingClient {
 
 	// ---- Writes ----------------------------------------------------------------------------
 
+	/** Reads a customer's billing data from its form. Read only: nothing is saved. */
+	async getClient(id: string): Promise<ClientDetails> {
+		const { form } = await this.open(`Client?Id=${encodeURIComponent(id)}`);
+		const v = (name: string) => form.value(`ctl00$Content$${name}`).trim();
+		const countryValue = v('Ddlcountries');
+		return {
+			fiscalName: v('Fiscalname'),
+			name: v('Name'),
+			streetLine: v('Address'),
+			postalCode: v('Postalcode'),
+			city: v('City'),
+			country:
+				form.options('ctl00$Content$Ddlcountries').find((o) => o.value === countryValue)?.text ?? ''
+		};
+	}
+
+	/** Updates an existing customer's name and address. The NIF is never changed. */
+	async updateClient(id: string, details: BillingDetails): Promise<void> {
+		this.assertWritable('update a customer');
+		const page = await this.open(`Client?Id=${encodeURIComponent(id)}`);
+		this.fillClient(page.form, details);
+		await this.saveForm(page, 'ctl00$Content$SaveClient');
+	}
+
 	/** Creates a customer and returns it as found by its NIF afterwards. */
 	async createClient(details: BillingDetails): Promise<ClientRecord> {
 		this.assertWritable('create a customer');
 		const form = await this.openCreateForm('Clients/List', 'Client');
 		this.fill(form.form, 'ctl00$Content$Fiscalnumber', details.nif);
-		form.form.selectByText('ctl00$Content$Ddlcountries', countryName(details.countryCode));
-		this.fill(form.form, 'ctl00$Content$Fiscalname', details.name);
-		this.fill(form.form, 'ctl00$Content$Name', details.name);
-		this.fill(form.form, 'ctl00$Content$Address', details.streetLine);
-		this.fill(form.form, 'ctl00$Content$Postalcode', details.postalCode);
-		this.fill(form.form, 'ctl00$Content$City', details.city);
+		this.fillClient(form.form, details);
 		await this.saveForm(form, 'ctl00$Content$SaveClient');
 		const created = await this.findClientByNif(details.nif);
 		if (!created) throw new UnexpectedPageError('The new customer was not found after saving it');
@@ -324,6 +354,15 @@ export class It4BillingClient {
 		if (f.findName('$ArticleNew') === articleField) {
 			throw new UnexpectedPageError(`The line for ${line.article.reference} was not added`);
 		}
+	}
+
+	private fillClient(f: WebForm, details: BillingDetails) {
+		f.selectByText('ctl00$Content$Ddlcountries', countryName(details.countryCode));
+		this.fill(f, 'ctl00$Content$Fiscalname', details.name);
+		this.fill(f, 'ctl00$Content$Name', details.name);
+		this.fill(f, 'ctl00$Content$Address', details.streetLine);
+		this.fill(f, 'ctl00$Content$Postalcode', details.postalCode);
+		this.fill(f, 'ctl00$Content$City', details.city);
 	}
 
 	private totals(f: WebForm): DocumentTotals {

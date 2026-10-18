@@ -50,6 +50,15 @@ export function validateOptions(options: It4BillingPluginOptions): string[] {
 	if (!isPositiveInt(options.requestTimeoutMs)) {
 		errors.push('requestTimeoutMs must be a positive integer');
 	}
+	if (
+		typeof options.userAgent !== 'string' ||
+		!options.userAgent.startsWith('Mozilla/5.0') ||
+		/[\r\n]/.test(options.userAgent)
+	) {
+		errors.push(
+			'userAgent must be a single line starting with Mozilla/5.0, or IT4Billing serves pages the plugin cannot use'
+		);
+	}
 	if (!Number.isInteger(options.maxAutomaticRetries) || options.maxAutomaticRetries < 0) {
 		errors.push('maxAutomaticRetries must be zero or a positive integer');
 	}

@@ -40,5 +40,6 @@ describe('It4BillingPlugin', () => {
 		expect(options.accountId).toBe('000000000');
 		expect(options.mode).toBe('dry-run');
 		expect(options.minRequestIntervalMs).toBe(1500);
+		expect(options.userAgent).toMatch(/^Mozilla\/5\.0 \(compatible; vendure-plugin-it4billing\//);
 	});
 });

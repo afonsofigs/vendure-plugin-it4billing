@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { DEFAULT_OPTIONS } from './constants';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { DEFAULT_OPTIONS, PLUGIN_VERSION } from './constants';
 import { resolveOptions, validateOptions } from './options';
 import type { It4BillingPluginInitOptions, It4BillingPluginOptions } from './types';
 
@@ -16,6 +18,12 @@ const resolve = (overrides: Partial<It4BillingPluginOptions> = {}) =>
 	({ ...DEFAULT_OPTIONS, ...required, ...overrides }) as It4BillingPluginOptions;
 
 describe('options', () => {
+	test('the plugin version constant matches package.json', () => {
+		expect(PLUGIN_VERSION).toBe(
+			JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8')).version
+		);
+	});
+
 	test('defaults to dry-run, the safe mode', () => {
 		expect(resolveOptions(required).mode).toBe('dry-run');
 	});
@@ -25,6 +33,18 @@ describe('options', () => {
 		expect(options.minRequestIntervalMs).toBe(2000);
 		expect(options.customerPdf).toBe('original-page');
 		expect(options.taxTypeIds).toEqual({ normal: 1, reduced: 2, intermediate: 3, exempt: 4 });
+	});
+
+	test('the default User-Agent is the honest one, naming the plugin', () => {
+		expect(resolveOptions(required).userAgent).toBe(
+			`Mozilla/5.0 (compatible; vendure-plugin-it4billing/${PLUGIN_VERSION})`
+		);
+	});
+
+	test('accepts a browser User-Agent', () => {
+		const userAgent =
+			'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+		expect(resolveOptions({ ...required, userAgent }).userAgent).toBe(userAgent);
 	});
 
 	test('the default comments are the order code', () => {
@@ -54,7 +74,10 @@ describe('options', () => {
 		['nifCustomField', { nifCustomField: '' }],
 		['billingDetails', { billingDetails: 'default' as never }],
 		['invoiceLines', { invoiceLines: undefined as never }],
-		['comments', { comments: 'order' as never }]
+		['comments', { comments: 'order' as never }],
+		['userAgent', { userAgent: '' }],
+		['userAgent', { userAgent: 'node' }],
+		['userAgent', { userAgent: 'Mozilla/5.0 (compatible)\r\nX-Injected: 1' }]
 	])('reports an invalid %s', (name, overrides) => {
 		const errors = validateOptions(resolve(overrides));
 		expect(errors).toHaveLength(1);

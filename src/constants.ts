@@ -1,5 +1,14 @@
 import type { It4BillingPluginOptions } from './types';
 
+/** Kept in sync with package.json by a test. */
+export const PLUGIN_VERSION = '0.1.0';
+
+/**
+ * Honest User-Agent that names the plugin. IT4Billing (ASP.NET) needs a `Mozilla/5.0` token to
+ * serve its full pages; with an unknown agent it serves a reduced version without partial postbacks.
+ */
+export const DEFAULT_USER_AGENT = `Mozilla/5.0 (compatible; vendure-plugin-it4billing/${PLUGIN_VERSION})`;
+
 export const IT4BILLING_PLUGIN_OPTIONS = Symbol('IT4BILLING_PLUGIN_OPTIONS');
 
 export const loggerCtx = 'It4BillingPlugin';
@@ -24,6 +33,7 @@ export const DEFAULT_OPTIONS: Omit<
 	mode: 'dry-run',
 	minRequestIntervalMs: 1500,
 	requestTimeoutMs: 30000,
+	userAgent: DEFAULT_USER_AGENT,
 	maxAutomaticRetries: 2,
 	retryDelayMs: 15 * 60 * 1000,
 	customerPdf: 'original-page',

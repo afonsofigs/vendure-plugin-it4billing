@@ -139,6 +139,15 @@ export interface It4BillingPluginOptions {
 
 	/**
 	 * @description
+	 * User-Agent sent to IT4Billing. It must start with `Mozilla/5.0`: without that token IT4Billing
+	 * (ASP.NET) serves reduced pages without partial postbacks, and the integration cannot work.
+	 * The default names the plugin.
+	 * @default 'Mozilla/5.0 (compatible; vendure-plugin-it4billing/<version>)'
+	 */
+	userAgent: string;
+
+	/**
+	 * @description
 	 * Automatic retries of a failed emission. They only happen while the document has not been sent
 	 * for saving; after that point the plugin never retries on its own.
 	 * @default 2

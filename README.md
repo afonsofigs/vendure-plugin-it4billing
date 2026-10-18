@@ -128,6 +128,7 @@ export const config: VendureConfig = {
 | `orderRelations`         | none                                                            | Extra order relations to load for your strategies.                                     |
 | `dryRunCustomerSearch`   | none                                                            | Existing test customer used by a dry run when the real one does not exist yet.         |
 | `dryRunArticleReference` | none                                                            | Existing test article used by a dry run when an article does not exist yet.            |
+| `shippingLine`           | none                                                            | Adds a line for the shipping the customer paid, with this article and tax rate.        |
 | `maxAutomaticRetries`    | `2`                                                             | Automatic retries, only for failures before the save step.                             |
 | `retryDelayMs`           | `900000`                                                        | Delay between automatic retries (15 minutes).                                          |
 
@@ -190,6 +191,10 @@ to it, for example with an `EmailEventListener`, to alert the team.
 - [x] IT4Billing HTTP client (login, customers, articles, documents, PDF), tested against a local
       fake IT4Billing server and smoke-tested read-only against a real account
 - [x] Invoice records, emission queue, Shop and Admin API, PDF storage and `dry-run`
+- [x] Existing customers are updated when their name or address changed
+- [x] Shipping line (`shippingLine`)
+- [ ] Invoices requested by an administrator, with billing details entered at that moment (for
+      example a business customer registered by hand)
 - [ ] Automatic reconciliation of `needs_review` invoices (today: check IT4Billing and import)
 - [ ] Credit notes and cancellations (today: by hand in IT4Billing)
 - [ ] Documentation of the full setup and a storefront example
@@ -226,6 +231,18 @@ A refused login is reported and never retried.
 - Vendure 3.x
 - Node.js 20 or later
 - An IT4Billing account with a user for the integration
+
+## Changes
+
+Unreleased, 0.1.0:
+
+- Shipping: the `shippingLine` option adds the shipping the customer paid as a line, at its tax
+  rate, and stops before saving when the amount cannot be reached at that rate.
+- Existing IT4Billing customers whose name or address changed are updated before issuing; a dry
+  run reports the update instead.
+- Invoice lifecycle, Shop and Admin API, PDF storage, events, scheduled retries and `dry-run`.
+- IT4Billing HTTP client, the `userAgent` option, and a read-only smoke script.
+- Plugin skeleton, options and NIF validation.
 
 ## License
 

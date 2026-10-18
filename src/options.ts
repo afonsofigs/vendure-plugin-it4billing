@@ -101,6 +101,24 @@ export function validateOptions(options: It4BillingPluginOptions): string[] {
 	) {
 		errors.push('orderRelations must be a list of relation paths');
 	}
+	if (options.shippingLine !== undefined) {
+		const s = options.shippingLine;
+		const a = s?.article;
+		if (
+			!a?.reference ||
+			!a.name ||
+			!a.unit ||
+			!['product', 'service', 'other'].includes(a.productType) ||
+			!TAX_TYPES.includes(a.taxType) ||
+			typeof s.taxRatePercent !== 'number' ||
+			s.taxRatePercent < 0 ||
+			s.taxRatePercent > 100
+		) {
+			errors.push(
+				'shippingLine needs an article (reference, name, productType, unit, taxType) and a taxRatePercent from 0 to 100'
+			);
+		}
+	}
 	for (const name of ['dryRunCustomerSearch', 'dryRunArticleReference'] as const) {
 		if (options[name] !== undefined && (typeof options[name] !== 'string' || !options[name])) {
 			errors.push(`${name} must be a non-empty string`);

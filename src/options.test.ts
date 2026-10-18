@@ -75,6 +75,25 @@ describe('options', () => {
 		['billingDetails', { billingDetails: 'default' as never }],
 		['invoiceLines', { invoiceLines: undefined as never }],
 		['comments', { comments: 'order' as never }],
+		[
+			'shippingLine',
+			{ shippingLine: { article: { reference: 'S' }, taxRatePercent: 23 } as never }
+		],
+		[
+			'shippingLine',
+			{
+				shippingLine: {
+					article: {
+						reference: 'S',
+						name: 'Shipping',
+						productType: 'service',
+						unit: 'Un',
+						taxType: 'normal'
+					},
+					taxRatePercent: 230
+				} as never
+			}
+		],
 		['userAgent', { userAgent: '' }],
 		['userAgent', { userAgent: 'node' }],
 		['userAgent', { userAgent: 'Mozilla/5.0 (compatible)\r\nX-Injected: 1' }]

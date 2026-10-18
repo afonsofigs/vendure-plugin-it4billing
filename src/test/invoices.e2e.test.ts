@@ -66,6 +66,16 @@ const env = createTestEnvironment(
 				storage,
 				dryRunCustomerSearch: 'Dry Run Customer',
 				dryRunArticleReference: 'T-DRY',
+				shippingLine: {
+					article: {
+						reference: 'T-SHIP',
+						name: 'Shipping',
+						productType: 'service',
+						unit: 'Un',
+						taxType: 'normal'
+					},
+					taxRatePercent: 23
+				},
 				invoiceLines: (_ctx, order) =>
 					order.lines.map((line) => ({
 						article: {
@@ -193,7 +203,8 @@ async function newCustomer(taxNumber: string | null) {
 async function placeOrder(
 	customer: { emailAddress: string },
 	items: [string, number][],
-	pay = true
+	pay = true,
+	paidShipping = false
 ): Promise<{ code: string; id: ID }> {
 	await shopClient.asUserWithCredentials(customer.emailAddress, 'test');
 	let order: { code: string; id: ID } | undefined;
@@ -235,6 +246,7 @@ async function placeOrder(
 		query {
 			eligibleShippingMethods {
 				id
+				price
 			}
 		}
 	`);
@@ -248,7 +260,13 @@ async function placeOrder(
 				}
 			}
 		`,
-		{ ids: [eligibleShippingMethods[0].id] }
+		{
+			ids: [
+				eligibleShippingMethods.find((m: { price: number }) =>
+					paidShipping ? m.price > 0 : m.price === 0
+				).id
+			]
+		}
 	);
 	await shopClient.query(gql`
 		mutation {
@@ -574,6 +592,22 @@ describe('failures', () => {
 		await sleep(1000);
 		expect(fake.prints - prints).toBe(1);
 		expect((await request(code)).status).toBe('PREPARING');
+	});
+});
+
+describe('shipping', () => {
+	test('the shipping the customer paid becomes a service line at its tax', async () => {
+		const customer = await newCustomer(nif('65678901'));
+		const { code } = await placeOrder(customer, [['BOX-1', 1]], true, true);
+		await request(code);
+		const rec = await waitFor(code, (r) => r.status === 'issued');
+		expect(rec.total).toBe(8900 + 615);
+		const doc = fake.documents.at(-1)!;
+		expect(doc.lines.map((l) => [l.reference, l.priceMilli, l.taxId])).toEqual([
+			['T-BOX-1', 78760, '3'],
+			['T-SHIP', 5000, '1']
+		]);
+		expect(fake.articles.find((a) => a.reference === 'T-SHIP')).toMatchObject({ productType: '2' });
 	});
 });
 

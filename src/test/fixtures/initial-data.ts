@@ -10,7 +10,10 @@ export const initialData: InitialData = {
 		{ name: 'Intermediate', percentage: 13 },
 		{ name: 'Reduced', percentage: 6 }
 	],
-	shippingMethods: [{ name: 'Standard Shipping', price: 0 }],
+	shippingMethods: [
+		{ name: 'Standard Shipping', price: 0 },
+		{ name: 'Paid Shipping', price: 615 }
+	],
 	paymentMethods: [
 		{
 			name: 'Test payment',

@@ -252,6 +252,28 @@ export interface It4BillingPluginOptions {
 	 */
 	dryRunCustomerSearch?: string;
 	dryRunArticleReference?: string;
+
+	/**
+	 * @description
+	 * Adds a line for the shipping the customer paid (`order.shippingWithTax`), when it is above zero,
+	 * with this article and tax. The price on the line is the paid amount without tax; if that amount
+	 * cannot be reached at the rate, the emission stops before saving. Leave it undefined if your
+	 * `invoiceLines` strategy already adds shipping, or if your orders never charge it.
+	 *
+	 * @example
+	 * ```ts
+	 * shippingLine: {
+	 *   article: { reference: 'SHIPPING', name: 'Shipping', productType: 'service', unit: 'Un', taxType: 'normal' },
+	 *   taxRatePercent: 23
+	 * }
+	 * ```
+	 */
+	shippingLine?: {
+		article: Omit<ArticleSpec, 'netUnitPrice'>;
+		/** The VAT rate of the article's tax type, used to take the tax out of the paid amount. */
+		taxRatePercent: number;
+		description?: string;
+	};
 }
 
 /**

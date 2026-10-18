@@ -268,7 +268,10 @@ export class It4BillingService implements OnModuleInit {
 			const injector = new Injector(this.moduleRef);
 			const billing = await this.billingDetails(ctx, order, injector);
 			if (!billing) throw new PermanentFailure('missing_nif', 'The order has no valid billing NIF');
-			const lines = await this.options.invoiceLines(ctx, order, injector);
+			const lines = [
+				...(await this.options.invoiceLines(ctx, order, injector)),
+				...this.shippingLines(order)
+			];
 			this.validateLines(lines);
 			const comments = this.options.comments(order);
 			if (comments.length > COMMENTS_MAX_LENGTH) {
@@ -600,6 +603,29 @@ export class It4BillingService implements OnModuleInit {
 				throw new PermanentFailure('invalid_line', `Line ${a?.reference ?? '?'}: ${problem}`);
 			}
 		}
+	}
+
+	/** The shipping line from `shippingLine`, when the order charged shipping. */
+	private shippingLines(order: Order): InvoiceLineSpec[] {
+		const config = this.options.shippingLine;
+		const gross = order.shippingWithTax;
+		if (!config || !gross) return [];
+		const rate = config.taxRatePercent;
+		const net = Math.round((gross * 100) / (100 + rate));
+		if (net + Math.round((net * rate) / 100) !== gross) {
+			throw new PermanentFailure(
+				'shipping_unreachable',
+				`Shipping of ${gross} cents cannot be reached at ${rate}% in IT4Billing`
+			);
+		}
+		return [
+			{
+				article: { ...config.article, netUnitPrice: net },
+				description: config.description,
+				quantity: 1,
+				discountPercent: 0
+			}
+		];
 	}
 
 	private async dryRunCustomer(client: It4BillingClient): Promise<ClientRecord> {

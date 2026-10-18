@@ -22,7 +22,8 @@ browser, and keeps the PDF so your customers can download it whenever they want.
 ## How it works
 
 1. The customer asks for the invoice of a paid order (for example, with a button in their account)
-   through the Shop API mutation `requestOrderInvoice`.
+   through the Shop API mutation `requestOrderInvoice`, or a team member asks for it through the
+   Admin API mutation `requestIt4billingInvoice`.
 2. The plugin records the request and queues it. One emission runs at a time, across processes and
    servers.
 3. The worker logs in to IT4Billing with a dedicated user, finds or creates the customer (by NIF)
@@ -105,32 +106,33 @@ export const config: VendureConfig = {
 
 ## Options
 
-| Option                   | Default                                                         | Description                                                                            |
-| ------------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `accountId`              | required                                                        | The account segment of the IT4Billing URL, normally the company's NIF.                 |
-| `credentials`            | required                                                        | `{ username, password }` of a dedicated IT4Billing user.                               |
-| `paymentMethod`          | required                                                        | Payment method name, exactly as listed in IT4Billing.                                  |
-| `invoiceLines`           | required                                                        | `(ctx, order, injector) => InvoiceLineSpec[]`: articles, tax types and line discounts. |
-| `mode`                   | `'dry-run'`                                                     | `'dry-run'` never saves; `'live'` issues documents.                                    |
-| `liveOrderCodes`         | all orders                                                      | In `live` mode, only these orders can be invoiced.                                     |
-| `billingDetails`         | default billing address                                         | `(ctx, order, injector) => BillingDetails \| undefined`. No valid NIF, no invoice.     |
-| `nifCustomField`         | `'nif'`                                                         | Address custom field read by the default `billingDetails`.                             |
-| `isEligible`             | payment settled                                                 | `(ctx, order, injector) => boolean`: which orders can have an invoice.                 |
-| `comments`               | `(order) => order.code`                                         | Document comments (max 50 characters). Keep the order code in it.                      |
-| `customerPdf`            | `'original-page'`                                               | The customer gets only the "Original" page; the full PDF is kept as the archive copy.  |
-| `taxTypeIds`             | `{ normal: 1, reduced: 2, intermediate: 3, exempt: 4 }`         | Ids of the IT4Billing tax types.                                                       |
-| `minRequestIntervalMs`   | `1500`                                                          | Minimum time between requests to IT4Billing (at least 500).                            |
-| `requestTimeoutMs`       | `30000`                                                         | Timeout of each request.                                                               |
-| `userAgent`              | `Mozilla/5.0 (compatible; vendure-plugin-it4billing/<version>)` | User-Agent sent to IT4Billing. Must start with `Mozilla/5.0`.                          |
-| `documentType`           | `'Fatura-Recibo'`                                               | Document type as listed in IT4Billing; the series comes with it.                       |
-| `referenceDate`          | order placed date                                               | `(ctx, order, injector) => Date`: the document's reference date.                       |
-| `storage`                | `LocalInvoiceStorageStrategy('./it4billing-invoices')`          | Where the archive and customer PDFs are kept.                                          |
-| `orderRelations`         | none                                                            | Extra order relations to load for your strategies.                                     |
-| `dryRunCustomerSearch`   | none                                                            | Existing test customer used by a dry run when the real one does not exist yet.         |
-| `dryRunArticleReference` | none                                                            | Existing test article used by a dry run when an article does not exist yet.            |
-| `shippingLine`           | none                                                            | Adds a line for the shipping the customer paid, with this article and tax rate.        |
-| `maxAutomaticRetries`    | `2`                                                             | Automatic retries, only for failures before the save step.                             |
-| `retryDelayMs`           | `900000`                                                        | Delay between automatic retries (15 minutes).                                          |
+| Option                   | Default                                                         | Description                                                                                           |
+| ------------------------ | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `accountId`              | required                                                        | The account segment of the IT4Billing URL, normally the company's NIF.                                |
+| `credentials`            | required                                                        | `{ username, password }` of a dedicated IT4Billing user.                                              |
+| `paymentMethod`          | required                                                        | Payment method name, exactly as listed in IT4Billing.                                                 |
+| `invoiceLines`           | required                                                        | `(ctx, order, injector) => InvoiceLineSpec[]`: articles, tax types and line discounts.                |
+| `mode`                   | `'dry-run'`                                                     | `'dry-run'` never saves; `'live'` issues documents.                                                   |
+| `liveOrderCodes`         | all orders                                                      | In `live` mode, only these orders can be invoiced.                                                    |
+| `billingDetails`         | default billing address                                         | `(ctx, order, injector) => BillingDetails \| undefined`. No valid NIF, no invoice.                    |
+| `nifCustomField`         | `'nif'`                                                         | Address custom field read by the default `billingDetails`.                                            |
+| `isEligible`             | payment settled                                                 | `(ctx, order, injector) => boolean`: which orders can have an invoice.                                |
+| `comments`               | `(order) => order.code`                                         | Document comments (max 50 characters). Keep the order code in it.                                     |
+| `customerPdf`            | `'original-page'`                                               | The customer gets only the "Original" page; the full PDF is kept as the archive copy.                 |
+| `taxTypeIds`             | `{ normal: 1, reduced: 2, intermediate: 3, exempt: 4 }`         | Ids of the IT4Billing tax types.                                                                      |
+| `minRequestIntervalMs`   | `1500`                                                          | Minimum time between requests to IT4Billing (at least 500).                                           |
+| `requestTimeoutMs`       | `30000`                                                         | Timeout of each request.                                                                              |
+| `userAgent`              | `Mozilla/5.0 (compatible; vendure-plugin-it4billing/<version>)` | User-Agent sent to IT4Billing. Must start with `Mozilla/5.0`.                                         |
+| `documentType`           | `'Fatura-Recibo'`                                               | Document type as listed in IT4Billing; the series comes with it.                                      |
+| `referenceDate`          | order placed date                                               | `(ctx, order, injector) => Date`: the document's reference date.                                      |
+| `storage`                | `LocalInvoiceStorageStrategy('./it4billing-invoices')`          | Where the archive and customer PDFs are kept.                                                         |
+| `orderRelations`         | none                                                            | Extra order relations to load for your strategies.                                                    |
+| `dryRunCustomerSearch`   | none                                                            | Existing test customer used by a dry run when the real one does not exist yet.                        |
+| `dryRunArticleReference` | none                                                            | Existing test article used by a dry run when an article does not exist yet.                           |
+| `shippingLine`           | none                                                            | Adds a line for the shipping the customer paid, with this article and tax rate.                       |
+| `customerVisible`        | every customer                                                  | `(ctx, order, injector) => boolean`: whether customers see invoices. Admin requests are not affected. |
+| `maxAutomaticRetries`    | `2`                                                             | Automatic retries, only for failures before the save step.                                            |
+| `retryDelayMs`           | `900000`                                                        | Delay between automatic retries (15 minutes).                                                         |
 
 The plugin also exports `isValidNif()` and `normalizeNif()`, to validate a Portuguese NIF in your
 own forms before it ever reaches IT4Billing.
@@ -145,13 +147,13 @@ order { it4billingInvoice { status documentNumber issuedAt downloadPath } }
 mutation { requestOrderInvoice(orderCode: "ABC123") { status } }
 ```
 
-| `status`       | Meaning                                                                   |
-| -------------- | ------------------------------------------------------------------------- |
-| `NONE`         | Can be invoiced and has not been yet                                      |
-| `MISSING_NIF`  | The default billing address has no valid NIF: ask the customer for one    |
-| `PREPARING`    | Being issued, or waiting for someone to check it. Never a technical error |
-| `ISSUED`       | Issued; download it from `downloadPath`                                   |
-| `NOT_ELIGIBLE` | Not paid, cancelled, or excluded by `isEligible` or `liveOrderCodes`      |
+| `status`       | Meaning                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------- |
+| `NONE`         | Can be invoiced and has not been yet                                                              |
+| `MISSING_NIF`  | The default billing address has no valid NIF: ask the customer for one                            |
+| `PREPARING`    | Being issued, or waiting for someone to check it. Never a technical error                         |
+| `ISSUED`       | Issued; download it from `downloadPath`                                                           |
+| `NOT_ELIGIBLE` | Not paid, cancelled, excluded by `isEligible` or `liveOrderCodes`, or hidden by `customerVisible` |
 
 `GET /it4billing/invoices/:orderCode/pdf` returns the stored PDF, only to the order's own customer
 (send the same session token or cookie as the Shop API). IT4Billing is never asked for it again.
@@ -159,6 +161,10 @@ mutation { requestOrderInvoice(orderCode: "ABC123") { status } }
 ## Admin API
 
 - `it4billingInvoices(status)` and `it4billingQueueStatus`
+- `requestIt4billingInvoice(orderCode)`: asks for the invoice on the customer's behalf. It follows
+  the same rules as the customer's request (eligibility, NIF, `liveOrderCodes`) but not
+  `customerVisible`, so a team can run the first emissions, or dry runs, before customers see
+  invoices
 - `retryIt4billingInvoice(id, confirmNotIssued)`: queues a failed invoice or a dry run again. An
   invoice in `needs_review` may already exist in IT4Billing: retry it only after checking there,
   with `confirmNotIssued: true`
@@ -193,8 +199,10 @@ to it, for example with an `EmailEventListener`, to alert the team.
 - [x] Invoice records, emission queue, Shop and Admin API, PDF storage and `dry-run`
 - [x] Existing customers are updated when their name or address changed
 - [x] Shipping line (`shippingLine`)
-- [ ] Invoices requested by an administrator, with billing details entered at that moment (for
-      example a business customer registered by hand)
+- [x] Invoices requested by an administrator (`requestIt4billingInvoice`) and kept hidden from
+      customers until opened (`customerVisible`)
+- [ ] Billing details entered by the administrator for one invoice (for example a business
+      customer registered by hand), instead of the customer's default billing address
 - [ ] Automatic reconciliation of `needs_review` invoices (today: check IT4Billing and import)
 - [ ] Credit notes and cancellations (today: by hand in IT4Billing)
 - [ ] Documentation of the full setup and a storefront example
@@ -235,6 +243,11 @@ A refused login is reported and never retried.
 ## Changes
 
 Unreleased, 0.1.0:
+
+- `customerVisible` hides invoices from customers (the Shop API answers `NOT_ELIGIBLE` and the PDF
+  is not served) until it returns true; the new Admin API mutation `requestIt4billingInvoice`
+  works regardless. A dry run report now includes the order total, the billing details and the
+  invoice lines.
 
 - Shipping: the `shippingLine` option adds the shipping the customer paid as a line, at its tax
   rate, and stops before saving when the amount cannot be reached at that rate.

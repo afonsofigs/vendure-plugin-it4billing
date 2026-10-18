@@ -78,7 +78,7 @@ export function validateOptions(options: It4BillingPluginOptions): string[] {
 	if (typeof options.nifCustomField !== 'string' || !options.nifCustomField) {
 		errors.push('nifCustomField is required');
 	}
-	for (const name of ['isEligible', 'billingDetails'] as const) {
+	for (const name of ['isEligible', 'billingDetails', 'customerVisible'] as const) {
 		if (options[name] !== undefined && typeof options[name] !== 'function') {
 			errors.push(`${name} must be a function`);
 		}

@@ -125,6 +125,7 @@ export class It4BillingService implements OnModuleInit {
 	/** What the customer sees for an order. Never exposes a technical error. */
 	async customerView(ctx: RequestContext, orderId: ID): Promise<CustomerInvoiceView> {
 		const order = await this.loadOrder(ctx, orderId);
+		if (!(await this.visibleToCustomer(ctx, order))) return { status: 'NOT_ELIGIBLE' };
 		return this.viewFor(ctx, order, await this.findByOrder(ctx, order.id));
 	}
 
@@ -137,7 +138,21 @@ export class It4BillingService implements OnModuleInit {
 		if (!order || !ctx.activeUserId || order.customer?.user?.id !== ctx.activeUserId) {
 			throw new ForbiddenError();
 		}
+		if (!(await this.visibleToCustomer(ctx, order))) return { status: 'NOT_ELIGIBLE' };
 		return this.request(ctx, order.id);
+	}
+
+	/**
+	 * Asks for the invoice of an order on behalf of the customer, from the Admin API. Not affected by
+	 * `customerVisible`, so a team can run the first emissions before customers see invoices.
+	 */
+	async requestForAdmin(ctx: RequestContext, orderCode: string): Promise<It4BillingInvoice> {
+		const order = await this.orderService.findOneByCode(ctx, orderCode, []);
+		if (!order) throw new UserInputError(`No order ${orderCode}`);
+		const view = await this.request(ctx, order.id);
+		const invoice = await this.findByOrder(ctx, order.id);
+		if (!invoice) throw new UserInputError(`${orderCode} cannot be invoiced: ${view.status}`);
+		return invoice;
 	}
 
 	async request(ctx: RequestContext, orderId: ID): Promise<CustomerInvoiceView> {
@@ -179,6 +194,7 @@ export class It4BillingService implements OnModuleInit {
 		if (!order || !ctx.activeUserId || order.customer?.user?.id !== ctx.activeUserId) {
 			throw new ForbiddenError();
 		}
+		if (!(await this.visibleToCustomer(ctx, order))) return undefined;
 		const invoice = await this.findByOrder(ctx, order.id);
 		if (invoice?.status !== 'issued' || !invoice.customerPdfKey || !invoice.documentNumber) {
 			return undefined;
@@ -348,7 +364,14 @@ export class It4BillingService implements OnModuleInit {
 				const updated = await this.update(ctx, invoice.id, {
 					status: 'dry_run',
 					total: totals.total,
-					dryRunReport: JSON.stringify({ totals, wouldCreate, wouldUpdate })
+					dryRunReport: JSON.stringify({
+						orderTotal: order.totalWithTax,
+						totals,
+						billing,
+						lines,
+						wouldCreate,
+						wouldUpdate
+					})
 				});
 				await this.publish(ctx, 'dry_run', updated, `Dry run total ${totals.total}`);
 				return;
@@ -532,6 +555,11 @@ export class It4BillingService implements OnModuleInit {
 		if (!(await this.isEligible(ctx, order))) return { status: 'NOT_ELIGIBLE' };
 		const billing = await this.billingDetails(ctx, order, new Injector(this.moduleRef));
 		return { status: billing ? 'NONE' : 'MISSING_NIF' };
+	}
+
+	private async visibleToCustomer(ctx: RequestContext, order: Order): Promise<boolean> {
+		if (!this.options.customerVisible) return true;
+		return this.options.customerVisible(ctx, order, new Injector(this.moduleRef));
 	}
 
 	private async isEligible(ctx: RequestContext, order: Order): Promise<boolean> {

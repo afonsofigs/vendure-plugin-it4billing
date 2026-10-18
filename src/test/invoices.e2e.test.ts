@@ -39,6 +39,7 @@ const storageDir = mkdtempSync(path.join(tmpdir(), 'it4billing-e2e-'));
 const storage = new LocalInvoiceStorageStrategy(storageDir);
 const PASSWORD = fake.password;
 let breakPrices = false;
+let customersSeeInvoices = true;
 
 // NIFs are computed from arbitrary prefixes: no real taxpayer is written here.
 const nif = (firstEight: string) => `${firstEight}${nifCheckDigit(firstEight)}`;
@@ -66,6 +67,7 @@ const env = createTestEnvironment(
 				storage,
 				dryRunCustomerSearch: 'Dry Run Customer',
 				dryRunArticleReference: 'T-DRY',
+				customerVisible: () => customersSeeInvoices,
 				shippingLine: {
 					article: {
 						reference: 'T-SHIP',
@@ -312,7 +314,7 @@ beforeAll(async () => {
 	await server.init({
 		initialData,
 		productsCsvPath: path.join(__dirname, 'fixtures/products.csv'),
-		customerCount: 16
+		customerCount: 20
 	});
 	await adminClient.asSuperAdmin();
 	server.app
@@ -595,6 +597,62 @@ describe('failures', () => {
 	});
 });
 
+describe('hidden from customers', () => {
+	test('customers see nothing, an administrator can still issue, and opening shows it', async () => {
+		const customer = await newCustomer(nif('66789012'));
+		const { code } = await placeOrder(customer, [['BOX-1', 1]]);
+		const saves = fake.saves;
+		customersSeeInvoices = false;
+		try {
+			expect((await request(code)).status).toBe('NOT_ELIGIBLE');
+			expect((await records()).some((r) => r.orderCode === code)).toBe(false);
+
+			const { requestIt4billingInvoice } = await adminClient.query(
+				gql`
+					mutation ($code: String!) {
+						requestIt4billingInvoice(orderCode: $code) {
+							status
+						}
+					}
+				`,
+				{ code }
+			);
+			expect(requestIt4billingInvoice.status).toBe('pending');
+			await waitFor(code, (r) => r.status === 'issued' && r.hasCustomerPdf);
+			expect(fake.saves - saves).toBe(1);
+
+			const view = (await shopClient.query(ORDER_INVOICE, { code })).orderByCode.it4billingInvoice;
+			expect(view.status).toBe('NOT_ELIGIBLE');
+			const pdf = await fetch(`http://localhost:3050/it4billing/invoices/${code}/pdf`, {
+				headers: { authorization: `Bearer ${shopClient.getAuthToken()}` }
+			});
+			expect(pdf.status).toBe(404);
+		} finally {
+			customersSeeInvoices = true;
+		}
+		expect((await request(code)).status).toBe('ISSUED');
+	});
+
+	test('the admin request respects eligibility and the NIF', async () => {
+		const customer = await newCustomer(null);
+		const { code } = await placeOrder(customer, [['BOX-1', 1]]);
+		const result = await adminClient
+			.query(
+				gql`
+					mutation ($code: String!) {
+						requestIt4billingInvoice(orderCode: $code) {
+							status
+						}
+					}
+				`,
+				{ code }
+			)
+			.catch((e: Error) => e);
+		expect(String(result)).toMatch(/MISSING_NIF/);
+		expect((await records()).some((r) => r.orderCode === code)).toBe(false);
+	});
+});
+
 describe('shipping', () => {
 	test('the shipping the customer paid becomes a service line at its tax', async () => {
 		const customer = await newCustomer(nif('65678901'));
@@ -721,6 +779,15 @@ describe('dry run and import', () => {
 				'article T-ACC-1'
 			]);
 			expect(report.totals.total).toBe(8900 + 615);
+			expect(report.orderTotal).toBe(8900 + 615);
+			expect(report.billing).toMatchObject({
+				nif: nif('61234567'),
+				city: 'Lisboa',
+				countryCode: 'PT'
+			});
+			expect(
+				report.lines.map((l: { article: { reference: string } }) => l.article.reference)
+			).toEqual(['T-BOX-1', 'T-ACC-1']);
 			expect(fake.saves).toBe(saves);
 			expect(fake.clients).toHaveLength(clients);
 			expect(fake.articles.some((a) => a.reference === 'T-ACC-1')).toBe(false);

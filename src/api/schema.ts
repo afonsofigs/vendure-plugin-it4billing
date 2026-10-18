@@ -62,6 +62,8 @@ export const adminSchema = gql`
 	}
 
 	extend type Mutation {
+		"Asks for the invoice of an order on the customer's behalf. Not affected by customerVisible."
+		requestIt4billingInvoice(orderCode: String!): It4BillingInvoiceRecord!
 		"Queues a failed invoice or a dry run again. needs_review only with confirmNotIssued."
 		retryIt4billingInvoice(id: ID!, confirmNotIssued: Boolean): It4BillingInvoiceRecord!
 		"Resumes the queue after a refused login was fixed."

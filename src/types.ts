@@ -185,6 +185,15 @@ export interface It4BillingPluginOptions {
 
 	/**
 	 * @description
+	 * Whether customers see invoices in the Shop API. When it returns false, the order shows no invoice
+	 * (`NOT_ELIGIBLE`), customer requests are refused and the PDF is not served. Admin requests are not
+	 * affected: use it to run the first emissions before opening invoices to customers. By default,
+	 * every customer sees them.
+	 */
+	customerVisible?: OrderStrategy<boolean>;
+
+	/**
+	 * @description
 	 * Who the invoice is issued to. Return `undefined` when the customer has no valid billing details;
 	 * the plugin then reports that a NIF is missing and issues nothing. By default, the customer's
 	 * default billing address, with the NIF read from the address custom field `nifCustomField`.

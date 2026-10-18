@@ -16,6 +16,8 @@ registerInitializer('sqljs', new SqljsInitializer(path.join(__dirname, '__data__
 describe('It4BillingPlugin', () => {
 	const { server } = createTestEnvironment({
 		...testConfig,
+		// Its own port: the e2e files run in parallel.
+		apiOptions: { ...testConfig.apiOptions, port: 3051 },
 		plugins: [
 			It4BillingPlugin.init({
 				// The account and credentials are placeholders: this suite never talks to IT4Billing.

@@ -1,3 +1,4 @@
+import { LocalInvoiceStorageStrategy } from './storage';
 import type { It4BillingPluginOptions } from './types';
 
 /** Kept in sync with package.json by a test. */
@@ -39,5 +40,13 @@ export const DEFAULT_OPTIONS: Omit<
 	customerPdf: 'original-page',
 	taxTypeIds: { normal: 1, reduced: 2, intermediate: 3, exempt: 4 },
 	nifCustomField: 'nif',
-	comments: (order) => order.code
+	comments: (order) => order.code,
+	documentType: 'Fatura-Recibo',
+	storage: new LocalInvoiceStorageStrategy('./it4billing-invoices')
 };
+
+/** Name of the job queue that issues invoices, one at a time. */
+export const ISSUE_QUEUE = 'it4billing-issue';
+
+/** How long a worker holds the account lease while it issues one invoice. */
+export const LEASE_MS = 10 * 60 * 1000;

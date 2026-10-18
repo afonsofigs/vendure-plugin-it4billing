@@ -11,7 +11,15 @@ export const initialData: InitialData = {
 		{ name: 'Reduced', percentage: 6 }
 	],
 	shippingMethods: [{ name: 'Standard Shipping', price: 0 }],
-	paymentMethods: [],
+	paymentMethods: [
+		{
+			name: 'Test payment',
+			handler: {
+				code: 'dummy-payment-handler',
+				arguments: [{ name: 'automaticSettle', value: 'true' }]
+			}
+		}
+	],
 	countries: [
 		{ name: 'Portugal', code: 'PT', zone: 'Europe' },
 		{ name: 'Spain', code: 'ES', zone: 'Europe' }

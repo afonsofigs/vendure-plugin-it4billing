@@ -10,7 +10,7 @@ import {
 import type { RequestLog } from '../client/http';
 import { nifCheckDigit } from '../nif';
 import type { ArticleSpec, BillingDetails } from '../types';
-import { FAKE_ACCOUNT, FAKE_PDF, FakeIt4Billing } from './fake-it4billing';
+import { FAKE_ACCOUNT, FakeIt4Billing } from './fake-it4billing';
 
 const fake = new FakeIt4Billing();
 const nif = (firstEight: string) => `${firstEight}${nifCheckDigit(firstEight)}`;
@@ -170,7 +170,7 @@ describe('It4BillingClient against the fake IT4Billing', () => {
 		expect(fake.documents.at(-1)!.lines[1].description).toBe('Accessory, black');
 
 		const printsBefore = fake.prints;
-		expect((await client.printDocument()).equals(FAKE_PDF)).toBe(true);
+		expect((await client.printDocument()).equals(fake.pdf)).toBe(true);
 		expect(fake.prints).toBe(printsBefore + 1);
 		await client.logout();
 	});

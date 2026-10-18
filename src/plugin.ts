@@ -1,7 +1,30 @@
-import { PluginCommonModule, VendurePlugin } from '@vendure/core';
+import { PluginCommonModule, ScheduledTask, VendurePlugin } from '@vendure/core';
+import { InvoiceDownloadController } from './api/download.controller';
+import {
+	AdminInvoiceResolver,
+	ShopInvoiceResolver,
+	ShopOrderInvoiceResolver
+} from './api/resolvers';
+import { adminSchema, shopSchema } from './api/schema';
 import { IT4BILLING_PLUGIN_OPTIONS } from './constants';
+import { It4BillingInvoice } from './entities/invoice.entity';
+import { It4BillingQueueState } from './entities/queue-state.entity';
 import { resolveOptions } from './options';
+import { It4BillingService } from './service/invoice.service';
 import type { It4BillingPluginInitOptions, It4BillingPluginOptions } from './types';
+
+/**
+ * Retries and crash recovery. Needs a scheduler plugin (for example `DefaultSchedulerPlugin`).
+ */
+export const processDueInvoicesTask = new ScheduledTask({
+	id: 'it4billing-process-due',
+	description: 'Queues IT4Billing invoices whose retry time has come',
+	schedule: (cron) => cron.every(5).minutes(),
+	async execute({ injector }) {
+		await injector.get(It4BillingService).processDue();
+		return { ok: true };
+	}
+});
 
 /**
  * @description
@@ -22,7 +45,21 @@ import type { It4BillingPluginInitOptions, It4BillingPluginOptions } from './typ
  */
 @VendurePlugin({
 	imports: [PluginCommonModule],
-	providers: [{ provide: IT4BILLING_PLUGIN_OPTIONS, useFactory: () => It4BillingPlugin.options }],
+	entities: [It4BillingInvoice, It4BillingQueueState],
+	providers: [
+		It4BillingService,
+		{ provide: IT4BILLING_PLUGIN_OPTIONS, useFactory: () => It4BillingPlugin.options }
+	],
+	controllers: [InvoiceDownloadController],
+	shopApiExtensions: {
+		schema: shopSchema,
+		resolvers: [ShopInvoiceResolver, ShopOrderInvoiceResolver]
+	},
+	adminApiExtensions: { schema: adminSchema, resolvers: [AdminInvoiceResolver] },
+	configuration: (config) => {
+		config.schedulerOptions.tasks.push(processDueInvoicesTask);
+		return config;
+	},
 	compatibility: '^3.0.0'
 })
 export class It4BillingPlugin {

@@ -16,9 +16,13 @@ export function validateOptions(options: It4BillingPluginOptions): string[] {
 	const errors: string[] = [];
 	const isPositiveInt = (v: unknown) => Number.isInteger(v) && (v as number) > 0;
 
+	// A local address can only be a test server, never a real account: it may use http and a short
+	// interval between requests.
+	let local = false;
 	try {
 		const url = new URL(options.baseUrl);
-		if (url.protocol !== 'https:') errors.push('baseUrl must use https');
+		local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+		if (url.protocol !== 'https:' && !local) errors.push('baseUrl must use https');
 	} catch {
 		errors.push('baseUrl must be a valid URL');
 	}
@@ -43,7 +47,7 @@ export function validateOptions(options: It4BillingPluginOptions): string[] {
 	}
 	if (
 		!isPositiveInt(options.minRequestIntervalMs) ||
-		options.minRequestIntervalMs < MIN_REQUEST_INTERVAL_FLOOR_MS
+		(!local && options.minRequestIntervalMs < MIN_REQUEST_INTERVAL_FLOOR_MS)
 	) {
 		errors.push(`minRequestIntervalMs must be at least ${MIN_REQUEST_INTERVAL_FLOOR_MS}`);
 	}
@@ -81,6 +85,27 @@ export function validateOptions(options: It4BillingPluginOptions): string[] {
 	}
 	if (typeof options.invoiceLines !== 'function') errors.push('invoiceLines must be a function');
 	if (typeof options.comments !== 'function') errors.push('comments must be a function');
+	if (typeof options.documentType !== 'string' || !options.documentType.trim()) {
+		errors.push('documentType is required');
+	}
+	if (options.referenceDate !== undefined && typeof options.referenceDate !== 'function') {
+		errors.push('referenceDate must be a function');
+	}
+	if (typeof options.storage?.save !== 'function' || typeof options.storage?.read !== 'function') {
+		errors.push('storage must implement save() and read()');
+	}
+	if (
+		options.orderRelations !== undefined &&
+		(!Array.isArray(options.orderRelations) ||
+			options.orderRelations.some((r) => typeof r !== 'string' || !r))
+	) {
+		errors.push('orderRelations must be a list of relation paths');
+	}
+	for (const name of ['dryRunCustomerSearch', 'dryRunArticleReference'] as const) {
+		if (options[name] !== undefined && (typeof options[name] !== 'string' || !options[name])) {
+			errors.push(`${name} must be a non-empty string`);
+		}
+	}
 	return errors;
 }
 

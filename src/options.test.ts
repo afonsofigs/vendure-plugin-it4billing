@@ -84,6 +84,14 @@ describe('options', () => {
 		expect(errors[0]).toContain(name);
 	});
 
+	test('only a local test server may use http and a short request interval', () => {
+		const local = { baseUrl: 'http://127.0.0.1:4000', minRequestIntervalMs: 1 };
+		expect(validateOptions(resolve(local))).toEqual([]);
+		expect(validateOptions(resolve({ ...local, baseUrl: 'http://app.example.test' }))).toHaveLength(
+			2
+		);
+	});
+
 	test('accepts an account id with a suffix', () => {
 		expect(validateOptions(resolve({ accountId: '000000000_Demo' }))).toEqual([]);
 	});

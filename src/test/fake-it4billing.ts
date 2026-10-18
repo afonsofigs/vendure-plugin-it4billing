@@ -7,6 +7,7 @@
 import { randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { PDFDocument } from 'pdf-lib';
 
 export const FAKE_ACCOUNT = '000000000';
 
@@ -31,7 +32,14 @@ const COUNTRIES: [string, string][] = [
 	['182', 'Portugal'],
 	['70', 'Spain']
 ];
-export const FAKE_PDF = Buffer.from('%PDF-1.4\n% fake document\n%%EOF\n', 'latin1');
+/** Page widths of the fake PDF: the original first, then the duplicate and the triplicate. */
+export const FAKE_PDF_PAGE_WIDTHS = [595, 596, 597];
+
+async function buildFakePdf(): Promise<Buffer> {
+	const doc = await PDFDocument.create();
+	for (const width of FAKE_PDF_PAGE_WIDTHS) doc.addPage([width, 842]);
+	return Buffer.from(await doc.save());
+}
 
 export interface FakeClient {
 	id: string;
@@ -102,6 +110,8 @@ export interface Failure {
 	status?: number;
 	/** Close the connection without an answer, like a lost response. */
 	drop?: boolean;
+	/** With `drop`: handle the request first, then lose the response. */
+	after?: boolean;
 }
 
 export class FakeIt4Billing {
@@ -113,6 +123,7 @@ export class FakeIt4Billing {
 	prints = 0;
 	logins = 0;
 	lastUserAgent?: string;
+	pdf: Buffer = Buffer.alloc(0);
 	username = 'integration-user';
 	password = 'not-a-real-password';
 	private sessions = new Map<string, Session>();
@@ -130,6 +141,7 @@ export class FakeIt4Billing {
 	}
 
 	async start(): Promise<void> {
+		this.pdf = await buildFakePdf();
 		this.server = createServer((req, res) => {
 			this.handle(req, res).catch((e) => {
 				res.statusCode = 500;
@@ -165,10 +177,14 @@ export class FakeIt4Billing {
 		const failure = this.failures.find((f) => f.match === control || f.match === path);
 		if (failure) {
 			this.failures.splice(this.failures.indexOf(failure), 1);
-			if (failure.drop) return req.socket.destroy();
-			return this.send(res, failure.status ?? 500, 'injected failure');
+			if (failure.drop && failure.after) {
+				res.end = (() => {
+					req.socket.destroy();
+					return res;
+				}) as typeof res.end;
+			} else if (failure.drop) return req.socket.destroy();
+			else return this.send(res, failure.status ?? 500, 'injected failure');
 		}
-
 		this.lastUserAgent = req.headers['user-agent'];
 		const session = this.session(req, res);
 		if (path === 'Login') return this.login(session, res, body);
@@ -191,7 +207,7 @@ export class FakeIt4Billing {
 
 		if (path === 'Search_Clients.ashx') return this.searchClients(res, url);
 		if (path === 'Search_Product.ashx') return this.searchProducts(res, url);
-		if (path === 'PdfPreview.ashx') return this.pdf(session, res, url);
+		if (path === 'PdfPreview.ashx') return this.servePdf(session, res, url);
 		if (path === 'EntityDocuments' || path === 'Clients/List' || path === 'Articles/List') {
 			return this.list(session, res, path, body, control);
 		}
@@ -464,13 +480,13 @@ export class FakeIt4Billing {
 		]);
 	}
 
-	private pdf(session: Session, res: ServerResponse, url: URL) {
+	private servePdf(session: Session, res: ServerResponse, url: URL) {
 		if (!session.pdfName || url.searchParams.get('Document') !== session.pdfName) {
 			return this.send(res, 404, 'no such file');
 		}
 		res.setHeader('content-type', 'application/force-download');
 		res.setHeader('content-disposition', `inline; filename=${session.pdfName}`);
-		res.end(FAKE_PDF);
+		res.end(this.pdf);
 	}
 
 	private documentPanel(d: Draft, saved?: FakeDocument): string {

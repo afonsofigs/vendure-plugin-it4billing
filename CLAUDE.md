@@ -45,6 +45,13 @@ Run a single test: `pnpm vitest run -t "substring"`.
   redirects), `form.ts` (the page as a DOM; submits what a browser would), `delta.ts` (UpdatePanel
   partial responses), `it4billing-client.ts` (login, searches, create customer and article, build,
   save and print documents). Writes are refused when `readOnly` is set.
+- `src/service/invoice.service.ts`: the invoice lifecycle. One record per order (unique order id),
+  a lease so one worker uses the account at a time, atomic claims by compare-and-set with a token,
+  retries only before saving, `needs_review` once the save request was sent, the queue paused on a
+  refused login, `dry-run` with a read-only client, the totals check before saving, one print.
+- `src/api/`: Shop API (`requestOrderInvoice`, `Order.it4billingInvoice`), Admin API, and the PDF
+  download controller. `src/entities/`, `src/events.ts`, `src/storage.ts`, `src/pdf.ts`.
+- `src/test/invoices.e2e.test.ts`: the guarantees above, end to end against the fake.
 - `src/test/fake-it4billing.ts`: local fake of the web application, strict on view state,
   ScriptManager values and unknown articles. Synthetic HTML only, never captured pages.
 - `src/test/`: e2e tests; `src/test/__data__/` is generated and ignored.

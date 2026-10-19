@@ -72,8 +72,11 @@ export class AdminInvoiceResolver {
 
 	@Mutation()
 	@Allow(Permission.UpdateOrder)
-	async requestIt4billingInvoice(@Ctx() ctx: RequestContext, @Args() args: { orderCode: string }) {
-		return record(await this.service.requestForAdmin(ctx, args.orderCode));
+	async requestIt4billingInvoice(
+		@Ctx() ctx: RequestContext,
+		@Args() args: { orderCode: string; dryRun?: boolean }
+	) {
+		return record(await this.service.requestForAdmin(ctx, args.orderCode, args.dryRun ?? false));
 	}
 
 	@Mutation()

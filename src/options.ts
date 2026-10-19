@@ -42,7 +42,10 @@ export function validateOptions(options: It4BillingPluginOptions): string[] {
 	) {
 		errors.push('liveOrderCodes must be a list of order codes');
 	}
-	if (typeof options.paymentMethod !== 'string' || !options.paymentMethod.trim()) {
+	if (
+		typeof options.paymentMethod !== 'function' &&
+		(typeof options.paymentMethod !== 'string' || !options.paymentMethod.trim())
+	) {
 		errors.push('paymentMethod is required');
 	}
 	if (

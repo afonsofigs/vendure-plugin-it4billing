@@ -146,12 +146,51 @@ export class It4BillingService implements OnModuleInit {
 	 * Asks for the invoice of an order on behalf of the customer, from the Admin API. Not affected by
 	 * `customerVisible`, so a team can run the first emissions before customers see invoices.
 	 */
-	async requestForAdmin(ctx: RequestContext, orderCode: string): Promise<It4BillingInvoice> {
+	async requestForAdmin(
+		ctx: RequestContext,
+		orderCode: string,
+		dryRun = false
+	): Promise<It4BillingInvoice> {
 		const order = await this.orderService.findOneByCode(ctx, orderCode, []);
 		if (!order) throw new UserInputError(`No order ${orderCode}`);
+		if (dryRun) return this.dryRunForAdmin(ctx, order.id, orderCode);
 		const view = await this.request(ctx, order.id);
 		const invoice = await this.findByOrder(ctx, order.id);
 		if (!invoice) throw new UserInputError(`${orderCode} cannot be invoiced: ${view.status}`);
+		return invoice;
+	}
+
+	/**
+	 * A dry run asked by an administrator, also in `live` mode: the document is built in IT4Billing and
+	 * checked, and nothing is saved. Only for an order without a real invoice; a later real request
+	 * turns the dry run into the emission.
+	 */
+	private async dryRunForAdmin(
+		ctx: RequestContext,
+		orderId: ID,
+		orderCode: string
+	): Promise<It4BillingInvoice> {
+		const order = await this.loadOrder(ctx, orderId);
+		const existing = await this.findByOrder(ctx, order.id);
+		if (existing && !existing.dryRun) {
+			throw new UserInputError(`${orderCode} already has an invoice record: ${existing.status}`);
+		}
+		const view = await this.viewFor(ctx, order, undefined);
+		if (view.status !== 'NONE') {
+			throw new UserInputError(`${orderCode} cannot be invoiced: ${view.status}`);
+		}
+		const invoice = existing
+			? await this.compareAndSet(ctx, existing.id, ['dry_run', 'failed'], {
+					status: 'pending',
+					attempts: 0,
+					nextAttemptAt: null,
+					failureReason: null,
+					lastError: null,
+					dryRunReport: null
+				})
+			: await this.insertOnce(ctx, order, 'pending', true);
+		if (!invoice) throw new UserInputError(`${orderCode} is being processed right now`);
+		await this.enqueue(ctx, invoice.id);
 		return invoice;
 	}
 
@@ -300,6 +339,14 @@ export class It4BillingService implements OnModuleInit {
 				? await this.options.referenceDate(ctx, order, injector)
 				: (order.orderPlacedAt ?? undefined);
 
+			const paymentMethod =
+				typeof this.options.paymentMethod === 'function'
+					? await this.options.paymentMethod(ctx, order, injector)
+					: this.options.paymentMethod;
+			if (!paymentMethod?.trim()) {
+				throw new PermanentFailure('invalid_payment_method', 'The order has no payment method');
+			}
+
 			await client.login();
 			loggedIn = true;
 
@@ -349,7 +396,7 @@ export class It4BillingService implements OnModuleInit {
 				documentType: this.options.documentType,
 				client: customer,
 				lines: used,
-				paymentMethod: this.options.paymentMethod,
+				paymentMethod,
 				comments,
 				referenceDate
 			});
@@ -366,6 +413,7 @@ export class It4BillingService implements OnModuleInit {
 					total: totals.total,
 					dryRunReport: JSON.stringify({
 						orderTotal: order.totalWithTax,
+						paymentMethod,
 						totals,
 						billing,
 						lines,
@@ -714,7 +762,8 @@ export class It4BillingService implements OnModuleInit {
 	private async insertOnce(
 		ctx: RequestContext,
 		order: Order,
-		status: InvoiceStatus = 'pending'
+		status: InvoiceStatus = 'pending',
+		dryRun = this.options.mode !== 'live'
 	): Promise<It4BillingInvoice | undefined> {
 		try {
 			return await this.repo(ctx).save(
@@ -722,7 +771,7 @@ export class It4BillingService implements OnModuleInit {
 					orderId: order.id,
 					orderCode: order.code,
 					status,
-					dryRun: this.options.mode !== 'live',
+					dryRun,
 					attempts: 0
 				})
 			);

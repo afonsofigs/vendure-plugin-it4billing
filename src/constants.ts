@@ -2,7 +2,7 @@ import { LocalInvoiceStorageStrategy } from './storage';
 import type { It4BillingPluginOptions } from './types';
 
 /** Kept in sync with package.json by a test. */
-export const PLUGIN_VERSION = '0.2.0';
+export const PLUGIN_VERSION = '0.3.0';
 
 /**
  * Honest User-Agent that names the plugin. IT4Billing (ASP.NET) needs a `Mozilla/5.0` token to

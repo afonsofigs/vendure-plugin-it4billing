@@ -110,7 +110,7 @@ export const config: VendureConfig = {
 | ------------------------ | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `accountId`              | required                                                        | The account segment of the IT4Billing URL, normally the company's NIF.                                |
 | `credentials`            | required                                                        | `{ username, password }` of a dedicated IT4Billing user.                                              |
-| `paymentMethod`          | required                                                        | Payment method name, exactly as listed in IT4Billing.                                                 |
+| `paymentMethod`          | required                                                        | Payment method name, exactly as listed in IT4Billing, or a function of the order that returns it.     |
 | `invoiceLines`           | required                                                        | `(ctx, order, injector) => InvoiceLineSpec[]`: articles, tax types and line discounts.                |
 | `mode`                   | `'dry-run'`                                                     | `'dry-run'` never saves; `'live'` issues documents.                                                   |
 | `liveOrderCodes`         | all orders                                                      | In `live` mode, only these orders can be invoiced.                                                    |
@@ -164,10 +164,12 @@ mutation { requestOrderInvoice(orderCode: "ABC123") { status } }
   the customer and the totals, for an administration screen
 - `it4billingInvoicePdf(id, copy)`: a stored PDF in base64, the `CUSTOMER` copy or the `ARCHIVE`
   copy as IT4Billing printed it
-- `requestIt4billingInvoice(orderCode)`: asks for the invoice on the customer's behalf. It follows
-  the same rules as the customer's request (eligibility, NIF, `liveOrderCodes`) but not
+- `requestIt4billingInvoice(orderCode, dryRun)`: asks for the invoice on the customer's behalf. It
+  follows the same rules as the customer's request (eligibility, NIF, `liveOrderCodes`) but not
   `customerVisible`, so a team can run the first emissions, or dry runs, before customers see
-  invoices
+  invoices. With `dryRun: true`, also in `live` mode, it builds and checks the document in IT4Billing
+  without saving it, and keeps the report (customer, lines, totals, payment method, what it would
+  create). Refused for an order that already has a real invoice; a later real request issues it
 - `retryIt4billingInvoice(id, confirmNotIssued)`: queues a failed invoice or a dry run again. An
   invoice in `needs_review` may already exist in IT4Billing: retry it only after checking there,
   with `confirmNotIssued: true`
@@ -271,6 +273,13 @@ A refused login is reported and never retried.
 - An IT4Billing account with a user for the integration
 
 ## Changes
+
+### 0.3.0
+
+- `paymentMethod` can be a function of the order, for shops paid in more than one way.
+- `requestIt4billingInvoice(orderCode, dryRun: true)` runs a dry run asked by an administrator,
+  also in `live` mode, to check a document before issuing it. The dry run report includes the
+  payment method.
 
 ### 0.2.0
 

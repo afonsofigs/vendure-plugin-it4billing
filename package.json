@@ -1,6 +1,6 @@
 {
 	"name": "vendure-plugin-it4billing",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Vendure plugin that issues certified invoice-receipts in IT4Billing (Portugal) for orders, without a browser, and stores the PDF for customers to download",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",

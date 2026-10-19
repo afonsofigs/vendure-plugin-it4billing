@@ -118,9 +118,11 @@ export interface It4BillingPluginOptions {
 
 	/**
 	 * @description
-	 * Name of the payment method exactly as it is listed in IT4Billing, for example `Card`.
+	 * Name of the payment method exactly as it is listed in IT4Billing, for example `Card`. Pass a
+	 * function when orders are paid in different ways, for example by card in the shop and by bank
+	 * transfer for business orders.
 	 */
-	paymentMethod: string;
+	paymentMethod: string | OrderStrategy<string>;
 
 	/**
 	 * @description

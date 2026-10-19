@@ -315,7 +315,7 @@ beforeAll(async () => {
 	await server.init({
 		initialData,
 		productsCsvPath: path.join(__dirname, 'fixtures/products.csv'),
-		customerCount: 20
+		customerCount: 30
 	});
 	await adminClient.asSuperAdmin();
 	server.app
@@ -633,6 +633,65 @@ describe('failures', () => {
 });
 
 describe('administration', () => {
+	const ADMIN_REQUEST = gql`
+		mutation ($code: String!, $dryRun: Boolean) {
+			requestIt4billingInvoice(orderCode: $code, dryRun: $dryRun) {
+				status
+				dryRun
+			}
+		}
+	`;
+
+	test('a dry run asked by an administrator saves nothing in live mode, then the order issues once', async () => {
+		const customer = await newCustomer(nif('68901234'));
+		fake.clients.push({
+			id: '950',
+			name: 'Known Customer',
+			fiscalName: 'Known Customer',
+			nif: nif('68901234'),
+			address: 'Rua de Exemplo, 1',
+			postalCode: '1000-001',
+			city: 'Lisboa',
+			country: 'Portugal'
+		});
+		const { code } = await placeOrder(customer, [['BOX-1', 1]]);
+		const saves = fake.saves;
+
+		const { requestIt4billingInvoice } = await adminClient.query(ADMIN_REQUEST, {
+			code,
+			dryRun: true
+		});
+		expect(requestIt4billingInvoice).toEqual({ status: 'pending', dryRun: true });
+		const rec = await waitFor(code, (r) => r.status === 'dry_run');
+		const report = JSON.parse(rec.dryRunReport!);
+		expect(report).toMatchObject({ orderTotal: 8900, paymentMethod: 'Card' });
+		expect(report.totals.total).toBe(8900);
+		expect(fake.saves).toBe(saves);
+		expect((await request(code)).status).toBe('PREPARING');
+		await waitFor(code, (r) => r.status === 'issued');
+		expect(fake.saves - saves).toBe(1);
+
+		await expect(adminClient.query(ADMIN_REQUEST, { code, dryRun: true })).rejects.toThrow(
+			'already has an invoice record: issued'
+		);
+	});
+
+	test('the payment method can depend on the order', async () => {
+		const customer = await newCustomer(nif('69012345'));
+		const { code } = await placeOrder(customer, [['BOX-1', 1]]);
+		const before = It4BillingPlugin.options.paymentMethod;
+		It4BillingPlugin.options.paymentMethod = (_ctx, order) =>
+			order.code === code ? 'Transfer' : 'Card';
+		try {
+			await request(code);
+			const rec = await waitFor(code, (r) => r.status === 'issued');
+			const doc = fake.documents.find((d) => d.number === rec.documentNumber);
+			expect(doc?.payment).toBe('Transfer');
+		} finally {
+			It4BillingPlugin.options.paymentMethod = before;
+		}
+	});
+
 	test('a record shows its order and customer, and both stored PDFs can be downloaded', async () => {
 		const customer = await newCustomer(nif('67890123'));
 		const { code } = await placeOrder(customer, [['BOX-1', 1]]);

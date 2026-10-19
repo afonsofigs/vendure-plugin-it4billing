@@ -268,6 +268,11 @@ A refused login is reported and never retried.
 
 ## Changes
 
+Unreleased, 0.1.1:
+
+- The billing details lose the spaces around each field before they reach IT4Billing, so a
+  customer is never created or updated with a city or a name ending in a space.
+
 Unreleased, 0.1.0:
 
 - `customerVisible` hides invoices from customers (the Shop API answers `NOT_ELIGIBLE` and the PDF

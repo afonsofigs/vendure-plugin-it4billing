@@ -308,9 +308,10 @@ export class FakeIt4Billing {
 		if (session.createMode !== 'client' && !editing) return this.send(res, 500, 'no create mode');
 		if (!body) return this.page(res, session, 'Client', clientPanel());
 		if (control !== 'ctl00$Content$SaveClient') return this.send(res, 500, 'unknown control');
-		const v = (n: string) => (body.get(`ctl00$Content$${n}`) ?? '').trim();
+		// Kept as sent, spaces included, as a form field would be; only the required check trims.
+		const v = (n: string) => body.get(`ctl00$Content$${n}`) ?? '';
 		const required = ['Fiscalnumber', 'Fiscalname', 'Name', 'Address', 'Postalcode', 'City'];
-		if (required.some((n) => !v(n))) {
+		if (required.some((n) => !v(n).trim())) {
 			return this.panel(res, session, clientPanel('Preencha os campos obrigatórios.'));
 		}
 		const country = COUNTRIES.find(([id]) => id === v('Ddlcountries'))?.[1] ?? '';

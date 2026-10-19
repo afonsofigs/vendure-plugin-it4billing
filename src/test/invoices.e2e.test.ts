@@ -173,7 +173,7 @@ async function waitFor(
 }
 
 /** A customer with a default billing address, with or without a NIF. */
-async function newCustomer(taxNumber: string | null) {
+async function newCustomer(taxNumber: string | null, address: Record<string, string> = {}) {
 	const customer = customers[nextCustomer++];
 	await adminClient.query(
 		gql`
@@ -194,7 +194,8 @@ async function newCustomer(taxNumber: string | null) {
 				countryCode: 'PT',
 				defaultBillingAddress: true,
 				defaultShippingAddress: true,
-				customFields: { nif: taxNumber }
+				customFields: { nif: taxNumber },
+				...address
 			}
 		}
 	);
@@ -740,6 +741,24 @@ describe('existing customers', () => {
 });
 
 describe('dry run and import', () => {
+	test('the billing details lose the spaces around them', async () => {
+		const customer = await newCustomer(` ${nif('62345678')} `, {
+			company: ' Spaced Company ',
+			streetLine1: ' Rua de Exemplo, 2 ',
+			postalCode: ' 1000-002 ',
+			city: 'Lisboa '
+		});
+		const { code } = await placeOrder(customer, [['BOX-1', 1]]);
+		await request(code);
+		await waitFor(code, (r) => r.status === 'issued');
+		expect(fake.clients.find((c) => c.nif === nif('62345678'))).toMatchObject({
+			name: 'Spaced Company',
+			address: 'Rua de Exemplo, 2',
+			postalCode: '1000-002',
+			city: 'Lisboa'
+		});
+	});
+
 	test('a dry run creates and saves nothing, then live issues the same order once', async () => {
 		const customer = await newCustomer(nif('61234567'));
 		const { code } = await placeOrder(customer, [

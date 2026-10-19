@@ -584,9 +584,17 @@ export class It4BillingService implements OnModuleInit {
 		if (!details) return undefined;
 		const nif = normalizeNif(details.nif ?? '');
 		if (!isValidNif(nif)) return undefined;
-		if (!details.name?.trim() || !details.streetLine?.trim() || !details.city?.trim())
-			return undefined;
-		return { ...details, nif };
+		// Customers type spaces around their address; IT4Billing would keep them on the customer.
+		const billing: BillingDetails = {
+			nif,
+			name: details.name?.trim() ?? '',
+			streetLine: details.streetLine?.trim() ?? '',
+			postalCode: details.postalCode?.trim() ?? '',
+			city: details.city?.trim() ?? '',
+			countryCode: details.countryCode?.trim() ?? ''
+		};
+		if (!billing.name || !billing.streetLine || !billing.city) return undefined;
+		return billing;
 	}
 
 	private defaultBillingDetails(order: Order): BillingDetails | undefined {

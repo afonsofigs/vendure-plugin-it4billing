@@ -20,9 +20,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  # npm Trusted Publishing: no token, npm trusts this workflow through GitHub's OIDC (id-token)
+  # and adds provenance. Needs npm 11.5.1 or later, and the trusted publisher set on npmjs.com.
   publish:
     needs: check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -32,7 +37,6 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+      - run: npm install -g npm@^11.5.1
       - run: pnpm build
-      - run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --access public

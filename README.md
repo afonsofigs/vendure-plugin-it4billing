@@ -171,7 +171,31 @@ mutation { requestOrderInvoice(orderCode: "ABC123") { status } }
 - `resumeIt4billingQueue`: after a refused login has been fixed
 - `importIt4billingInvoice(orderCode, documentNumber, pdfBase64)`: records an invoice issued
   outside the plugin (or a `needs_review` one found in IT4Billing), so the order is never
-  invoiced again
+  invoiced again. The PDF travels in the JSON body as base64, a third larger than the file, and
+  Express refuses JSON bodies above 100 kB by default: a real invoice PDF (often 1 MB) needs a
+  larger limit on the Admin API only, for example with `apiOptions.middleware`. Name the handler
+  function anything but `jsonParser`: NestJS skips its own JSON parser when it finds a middleware
+  with that name, and the Shop API would receive no body.
+
+  ```ts
+  import { json } from 'express';
+
+  const adminApiJson = json({ limit: '10mb' });
+
+  export const config: VendureConfig = {
+  	apiOptions: {
+  		middleware: [
+  			{
+  				route: '/admin-api',
+  				handler: function adminApiJsonParser(req, res, next) {
+  					adminApiJson(req, res, next);
+  				},
+  				beforeListen: true
+  			}
+  		]
+  	}
+  };
+  ```
 
 ## Events
 
@@ -203,6 +227,8 @@ to it, for example with an `EmailEventListener`, to alert the team.
       customers until opened (`customerVisible`)
 - [ ] Billing details entered by the administrator for one invoice (for example a business
       customer registered by hand), instead of the customer's default billing address
+- [ ] Import of an invoice PDF as a multipart upload (GraphQL `Upload`), so it no longer needs a
+      larger JSON body limit on the Admin API
 - [ ] Automatic reconciliation of `needs_review` invoices (today: check IT4Billing and import)
 - [ ] Credit notes and cancellations (today: by hand in IT4Billing)
 - [ ] Documentation of the full setup and a storefront example

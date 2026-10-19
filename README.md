@@ -268,12 +268,16 @@ A refused login is reported and never retried.
 
 ## Changes
 
-Unreleased, 0.1.1:
+### 0.1.2
+
+- Published with npm Trusted Publishing from GitHub Actions, with provenance. No code changes.
+
+### 0.1.1
 
 - The billing details lose the spaces around each field before they reach IT4Billing, so a
   customer is never created or updated with a city or a name ending in a space.
 
-Unreleased, 0.1.0:
+### 0.1.0 (not published)
 
 - `customerVisible` hides invoices from customers (the Shop API answers `NOT_ELIGIBLE` and the PDF
   is not served) until it returns true; the new Admin API mutation `requestIt4billingInvoice`

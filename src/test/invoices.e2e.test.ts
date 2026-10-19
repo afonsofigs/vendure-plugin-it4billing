@@ -595,6 +595,86 @@ describe('failures', () => {
 		await sleep(1000);
 		expect(fake.prints - prints).toBe(1);
 		expect((await request(code)).status).toBe('PREPARING');
+
+		// The administrator downloads it from IT4Billing and attaches it, under the same number.
+		const attach = (documentNumber: string) =>
+			adminClient.query(
+				gql`
+					mutation ($code: String!, $number: String!, $pdf: String!) {
+						importIt4billingInvoice(orderCode: $code, documentNumber: $number, pdfBase64: $pdf) {
+							status
+							documentNumber
+							hasCustomerPdf
+							hasArchivePdf
+						}
+					}
+				`,
+				{ code, number: documentNumber, pdf: fake.pdf.toString('base64') }
+			);
+		await expect(attach(`${rec.documentNumber}0`)).rejects.toThrow(
+			`was issued as ${rec.documentNumber}`
+		);
+		const saves = fake.saves;
+		const { importIt4billingInvoice } = await attach(rec.documentNumber!);
+		expect(importIt4billingInvoice).toEqual({
+			status: 'issued',
+			documentNumber: rec.documentNumber,
+			hasCustomerPdf: true,
+			hasArchivePdf: true
+		});
+		expect(await request(code)).toMatchObject({
+			status: 'ISSUED',
+			documentNumber: rec.documentNumber
+		});
+		await expect(attach(rec.documentNumber!)).rejects.toThrow('is already invoiced');
+		expect(fake.saves).toBe(saves);
+		expect(fake.prints - prints).toBe(1);
+	});
+});
+
+describe('administration', () => {
+	test('a record shows its order and customer, and both stored PDFs can be downloaded', async () => {
+		const customer = await newCustomer(nif('67890123'));
+		const { code } = await placeOrder(customer, [['BOX-1', 1]]);
+		await request(code);
+		await waitFor(code, (r) => r.status === 'issued' && r.hasCustomerPdf);
+
+		const { it4billingInvoices } = await adminClient.query(gql`
+			query {
+				it4billingInvoices {
+					id
+					orderCode
+					hasArchivePdf
+					order {
+						code
+						totalWithTax
+						customer {
+							emailAddress
+						}
+					}
+				}
+			}
+		`);
+		const rec = it4billingInvoices.find((r: { orderCode: string }) => r.orderCode === code);
+		expect(rec).toMatchObject({
+			hasArchivePdf: true,
+			order: { code, totalWithTax: 8900, customer: { emailAddress: customer.emailAddress } }
+		});
+
+		const pages = async (copy: 'CUSTOMER' | 'ARCHIVE') => {
+			const { it4billingInvoicePdf } = await adminClient.query(
+				gql`
+					query ($id: ID!, $copy: It4BillingPdfCopy!) {
+						it4billingInvoicePdf(id: $id, copy: $copy)
+					}
+				`,
+				{ id: rec.id, copy }
+			);
+			const doc = await PDFDocument.load(Buffer.from(it4billingInvoicePdf, 'base64'));
+			return doc.getPageCount();
+		};
+		expect(await pages('CUSTOMER')).toBe(1);
+		expect(await pages('ARCHIVE')).toBe(FAKE_PDF_PAGE_WIDTHS.length);
 	});
 });
 

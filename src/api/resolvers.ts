@@ -1,5 +1,5 @@
 import { Args, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Allow, Ctx, ID, Order, Permission, RequestContext } from '@vendure/core';
+import { Allow, Ctx, ID, Order, OrderService, Permission, RequestContext } from '@vendure/core';
 import type { It4BillingInvoice } from '../entities/invoice.entity';
 import { It4BillingService } from '../service/invoice.service';
 
@@ -24,7 +24,21 @@ export class ShopInvoiceResolver {
 	}
 }
 
-const record = (i: It4BillingInvoice) => ({ ...i, hasCustomerPdf: !!i.customerPdfKey });
+const record = (i: It4BillingInvoice) => ({
+	...i,
+	hasCustomerPdf: !!i.customerPdfKey,
+	hasArchivePdf: !!i.archivePdfKey
+});
+
+@Resolver('It4BillingInvoiceRecord')
+export class AdminInvoiceRecordResolver {
+	constructor(private readonly orderService: OrderService) {}
+
+	@ResolveField()
+	order(@Ctx() ctx: RequestContext, @Parent() invoice: It4BillingInvoice) {
+		return this.orderService.findOne(ctx, invoice.orderId);
+	}
+}
 
 @Resolver()
 export class AdminInvoiceResolver {
@@ -40,6 +54,20 @@ export class AdminInvoiceResolver {
 	@Allow(Permission.ReadOrder)
 	it4billingQueueStatus(@Ctx() ctx: RequestContext) {
 		return this.service.queueState(ctx);
+	}
+
+	@Query()
+	@Allow(Permission.ReadOrder)
+	async it4billingInvoicePdf(
+		@Ctx() ctx: RequestContext,
+		@Args() args: { id: ID; copy: 'CUSTOMER' | 'ARCHIVE' }
+	) {
+		const pdf = await this.service.storedPdf(
+			ctx,
+			args.id,
+			args.copy === 'ARCHIVE' ? 'archive' : 'customer'
+		);
+		return pdf?.toString('base64') ?? null;
 	}
 
 	@Mutation()

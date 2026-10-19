@@ -490,7 +490,8 @@ export class It4BillingService implements OnModuleInit {
 
 	/**
 	 * Records an invoice issued outside the plugin (by hand, or a `needs_review` one found in
-	 * IT4Billing), with its PDF, so the order is never invoiced again.
+	 * IT4Billing), with its PDF, so the order is never invoiced again. For an invoice that was issued
+	 * but whose PDF was not stored, it only attaches the PDF, and the number must be the same.
 	 */
 	async importIssued(
 		ctx: RequestContext,
@@ -503,7 +504,14 @@ export class It4BillingService implements OnModuleInit {
 		const order = await this.orderService.findOneByCode(ctx, orderCode, []);
 		if (!order) throw new UserInputError(`No order ${orderCode}`);
 		let invoice = await this.findByOrder(ctx, order.id);
-		if (invoice?.status === 'issued') throw new UserInputError(`${orderCode} is already invoiced`);
+		if (invoice?.status === 'issued') {
+			if (invoice.archivePdfKey) throw new UserInputError(`${orderCode} is already invoiced`);
+			// Issued, but the PDF was not stored (`pdf_missing`): attach it, under the same number.
+			if (invoice.documentNumber !== documentNumber.trim()) {
+				throw new UserInputError(`${orderCode} was issued as ${invoice.documentNumber}`);
+			}
+			return this.storePdfs(ctx, invoice, pdf);
+		}
 		if (invoice && ['preparing', 'saving'].includes(invoice.status)) {
 			throw new UserInputError(`${orderCode} is being invoiced right now`);
 		}
@@ -518,6 +526,17 @@ export class It4BillingService implements OnModuleInit {
 			lastError: null
 		});
 		return this.storePdfs(ctx, issued, pdf);
+	}
+
+	/** A stored PDF of an invoice, for the administration. */
+	async storedPdf(
+		ctx: RequestContext,
+		id: ID,
+		copy: 'customer' | 'archive'
+	): Promise<Buffer | undefined> {
+		const invoice = await this.repo(ctx).findOne({ where: { id } });
+		const key = copy === 'archive' ? invoice?.archivePdfKey : invoice?.customerPdfKey;
+		return key ? this.options.storage.read(key) : undefined;
 	}
 
 	async queueState(ctx: RequestContext): Promise<It4BillingQueueState> {

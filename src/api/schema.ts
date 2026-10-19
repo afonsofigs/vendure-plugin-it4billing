@@ -45,9 +45,18 @@ export const adminSchema = gql`
 		total: Int
 		issuedAt: DateTime
 		hasCustomerPdf: Boolean!
+		hasArchivePdf: Boolean!
 		failureReason: String
 		lastError: String
 		dryRunReport: String
+		"The order, with its customer and totals. Null if the order was deleted."
+		order: Order
+	}
+
+	"Which stored PDF: the customer's copy, or the archive copy as IT4Billing printed it."
+	enum It4BillingPdfCopy {
+		CUSTOMER
+		ARCHIVE
 	}
 
 	type It4BillingQueueStatus {
@@ -59,6 +68,8 @@ export const adminSchema = gql`
 	extend type Query {
 		it4billingInvoices(status: String): [It4BillingInvoiceRecord!]!
 		it4billingQueueStatus: It4BillingQueueStatus!
+		"A stored PDF in base64, or null when the invoice has none."
+		it4billingInvoicePdf(id: ID!, copy: It4BillingPdfCopy!): String
 	}
 
 	extend type Mutation {
@@ -68,7 +79,10 @@ export const adminSchema = gql`
 		retryIt4billingInvoice(id: ID!, confirmNotIssued: Boolean): It4BillingInvoiceRecord!
 		"Resumes the queue after a refused login was fixed."
 		resumeIt4billingQueue: It4BillingQueueStatus!
-		"Records an invoice issued outside the plugin, with its PDF, so the order is never invoiced again."
+		"""
+		Records an invoice issued outside the plugin, with its PDF, so the order is never invoiced again.
+		Also attaches the PDF to an issued invoice whose PDF was not stored, with the same number.
+		"""
 		importIt4billingInvoice(
 			orderCode: String!
 			documentNumber: String!

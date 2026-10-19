@@ -160,7 +160,10 @@ mutation { requestOrderInvoice(orderCode: "ABC123") { status } }
 
 ## Admin API
 
-- `it4billingInvoices(status)` and `it4billingQueueStatus`
+- `it4billingInvoices(status)` and `it4billingQueueStatus`. Each record resolves its `order`, with
+  the customer and the totals, for an administration screen
+- `it4billingInvoicePdf(id, copy)`: a stored PDF in base64, the `CUSTOMER` copy or the `ARCHIVE`
+  copy as IT4Billing printed it
 - `requestIt4billingInvoice(orderCode)`: asks for the invoice on the customer's behalf. It follows
   the same rules as the customer's request (eligibility, NIF, `liveOrderCodes`) but not
   `customerVisible`, so a team can run the first emissions, or dry runs, before customers see
@@ -171,7 +174,8 @@ mutation { requestOrderInvoice(orderCode: "ABC123") { status } }
 - `resumeIt4billingQueue`: after a refused login has been fixed
 - `importIt4billingInvoice(orderCode, documentNumber, pdfBase64)`: records an invoice issued
   outside the plugin (or a `needs_review` one found in IT4Billing), so the order is never
-  invoiced again. The PDF travels in the JSON body as base64, a third larger than the file, and
+  invoiced again. After `pdf_missing`, it attaches the PDF to the issued invoice instead, and the
+  number must be the one already recorded. The PDF travels in the JSON body as base64, a third larger than the file, and
   Express refuses JSON bodies above 100 kB by default: a real invoice PDF (often 1 MB) needs a
   larger limit on the Admin API only, for example with `apiOptions.middleware`. Name the handler
   function anything but `jsonParser`: NestJS skips its own JSON parser when it finds a middleware
@@ -267,6 +271,14 @@ A refused login is reported and never retried.
 - An IT4Billing account with a user for the integration
 
 ## Changes
+
+### 0.2.0
+
+- Admin API for an administration screen: each invoice record resolves its `order`, and
+  `it4billingInvoicePdf` returns the stored customer or archive PDF.
+- After `pdf_missing`, `importIt4billingInvoice` attaches the PDF to the issued invoice, under the
+  same number. Before, it refused the import, and the customer kept seeing the invoice as being
+  prepared.
 
 ### 0.1.2
 

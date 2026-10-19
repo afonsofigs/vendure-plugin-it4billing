@@ -1,6 +1,6 @@
 {
 	"name": "vendure-plugin-it4billing",
-	"version": "0.1.2",
+	"version": "0.2.0",
 	"description": "Vendure plugin that issues certified invoice-receipts in IT4Billing (Portugal) for orders, without a browser, and stores the PDF for customers to download",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -27,7 +27,7 @@
 		"access": "public"
 	},
 	"repository": {
-		"url": "https://github.com/afonsofigs/vendure-plugin-it4billing.git",
+		"url": "git+https://github.com/afonsofigs/vendure-plugin-it4billing.git",
 		"type": "git"
 	},
 	"engines": {

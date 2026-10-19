@@ -1,6 +1,7 @@
 import { PluginCommonModule, ScheduledTask, VendurePlugin } from '@vendure/core';
 import { InvoiceDownloadController } from './api/download.controller';
 import {
+	AdminInvoiceRecordResolver,
 	AdminInvoiceResolver,
 	ShopInvoiceResolver,
 	ShopOrderInvoiceResolver
@@ -55,7 +56,10 @@ export const processDueInvoicesTask = new ScheduledTask({
 		schema: shopSchema,
 		resolvers: [ShopInvoiceResolver, ShopOrderInvoiceResolver]
 	},
-	adminApiExtensions: { schema: adminSchema, resolvers: [AdminInvoiceResolver] },
+	adminApiExtensions: {
+		schema: adminSchema,
+		resolvers: [AdminInvoiceResolver, AdminInvoiceRecordResolver]
+	},
 	configuration: (config) => {
 		config.schedulerOptions.tasks.push(processDueInvoicesTask);
 		return config;
